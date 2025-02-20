@@ -2,22 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\AuthRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\LoginRequest;
 use Illuminate\Http\JsonResponse;
 use App\Models\User;
 use Exception;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Tymon\JWTAuth\Exceptions\JWTException;
+use Illuminate\Contracts\Auth;
 
 class AuthController extends Controller
 {
     /**
      * Register new user.
-     * @param \App\Http\Requests\AuthRequest $request
-     * @return JsonResponse|mixed
+     * @param \App\Http\Requests\RegisterRequest $request
+     * @return JsonResponse
      */
-    public function register(AuthRequest $request): JsonResponse
+    public function register(RegisterRequest $request): JsonResponse
     {
         try {
             $user = User::create($request->validated());
@@ -36,50 +36,58 @@ class AuthController extends Controller
     /**
      * Login user.
      * @param \App\Http\Requests\LoginRequest $request
-     * @return JsonResponse|mixed
+     * @return JsonResponse
      */
     public function login(LoginRequest $request): JsonResponse
     {
         try {
-            $user = User::where('email', $request->email)->first();
+            $credentials = $request->only('email', 'password');
 
-            if (!$user || !Hash::check($request->password, $user->password)) {
+            if (!$token = auth()->attempt($credentials)) {
                 return response()->json([
                     'message' => 'Invalid credentials!',
                 ], 401);
             }
 
-            $token = $user->createToken('auth_token')->plainTextToken;
-
-            return response()->json([
-                'user' => $user,
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ], 200);
-        } catch (Exception $e) {
+            return $this->respondWithToken($token);
+        } catch (JWTException $e) {
             return response()->json([
                 'message' => 'Authentication error!',
-                'error' => $e->getMessage()
             ], 400);
         }
     }
 
     /**
      * Logout user.
-     * @param \Illuminate\Http\Request $request
-     * @return JsonResponse|mixed
+     * @return JsonResponse
      */
-    public function logout(Request $request): JsonResponse
+    public function logout(): JsonResponse
     {
         try {
-            $request->user()->tokens()->delete();
+            auth()->logout();
+
             return response()->json([
-                'message' => 'Session closed!'
+                'message' => 'Successfully logged out!'
             ], 200);
-        } catch (Exception $e) {
+        } catch (JWTException $e) {
             return response()->json([
                 'message' => 'Logout error!'
             ], 400);
         }
+    }
+
+    /**
+     * Get the token array structure.
+     * @param string $token
+     * @return JsonResponse
+     */
+    protected function respondWithToken(string $token): JsonResponse
+    {
+        return response()->json([
+            'user' => auth()->user(),
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->factory()->getTTL() * 60
+        ]);
     }
 }
