@@ -8,7 +8,6 @@ use Illuminate\Http\JsonResponse;
 use App\Models\User;
 use Exception;
 use Tymon\JWTAuth\Exceptions\JWTException;
-use Illuminate\Contracts\Auth;
 
 class AuthController extends Controller
 {
@@ -43,7 +42,7 @@ class AuthController extends Controller
         try {
             $credentials = $request->only('email', 'password');
 
-            if (!$token = auth()->attempt($credentials)) {
+            if (!$token = auth('api')->attempt($credentials)) {
                 return response()->json([
                     'message' => 'Invalid credentials!',
                 ], 401);
@@ -64,7 +63,7 @@ class AuthController extends Controller
     public function logout(): JsonResponse
     {
         try {
-            auth()->logout();
+            auth('api')->logout();
 
             return response()->json([
                 'message' => 'Successfully logged out!'
@@ -84,10 +83,10 @@ class AuthController extends Controller
     protected function respondWithToken(string $token): JsonResponse
     {
         return response()->json([
-            'user' => auth()->user(),
+            'user' => auth('api')->user(),
             'access_token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => auth()->factory()->getTTL() * 60
+            'expires_in' => auth('api')->factory()->getTTL() * 60
         ]);
     }
 }
